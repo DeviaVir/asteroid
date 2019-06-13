@@ -1,574 +1,368 @@
+[![npm version](https://badge.fury.io/js/asteroid.svg)](https://badge.fury.io/js/asteroid)
 [![Build Status](https://travis-ci.org/mondora/asteroid.svg?branch=master)](https://travis-ci.org/mondora/asteroid)
-[![Coverage Status](https://coveralls.io/repos/mondora/asteroid/badge.png)](https://coveralls.io/r/mondora/asteroid)
+[![Coverage Status](https://img.shields.io/coveralls/mondora/asteroid.svg)](https://coveralls.io/r/mondora/asteroid?branch=master)
+[![Dependency Status](https://david-dm.org/mondora/asteroid.svg)](https://david-dm.org/mondora/asteroid)
+[![devDependency Status](https://david-dm.org/mondora/asteroid/dev-status.svg)](https://david-dm.org/mondora/asteroid#info=devDependencies)
 
-[Example todo app using AngularJS.](http://mondora.github.io/meteor-todo)
-[Same app using Meteor's front-end.](http://meteor.todo.pscanf.com)
+# asteroid
 
-#asteroid
+A javascript client (node) for a Meteor backend.
 
-A javascript client (browser and node) for a Meteor backend.
+> `2.x.x` is out, find out what changed in the [CHANGELOG](./CHANGELOG.md)
 
-##Table of contents
+## Why
 
-[Why](#why)
+Meteor is an awesome framework for building real-time APIs. Its canonical
+front-end framework however is not very flexible. Adopting other front-ends
+comes with the cost of having to work around the limitations of meteor's build
+tool, which makes it very difficult, for instance, to use other tools like
+webpack, or to manage dependencies via `npm`.
 
-[Install](#install)
+Asteroid is an isomorphic/universal javascript library which allows to connect
+to a Meteor backend from almost any JS environment.
 
-[Example usage](#example-usage)
+With Asteroid you can:
+* hook any existing application to a real-time meteor API
+* use any front-end framework you want with a Meteor backend
+* develop browser extensions backed by Meteor
+* use Meteor as a backend for a react-native app
 
-[Advantages over the canonical Meteor front-end](#advantages-over-the-canonical-meteor-front-end)
+### Advantages over the canonical Meteor front-end
 
-[Build asteroid locally](#build-asteroid-locally)
+* Small footprint
+* Framework agnostic. Use the tools you already know and love to build your app
+* Allows to use Meteor as a full-blown backend or just as a real-time platform
+  pluggable into any existing project
+* Easily connect to multiple Meteor servers at the same time, perfect for
+  building admin interfaces
 
-[Contribute](#contribute)
+## Install
 
-[API](#api)
+    npm install --save asteroid
 
-##Why
+## Usage
 
-Meteor is an awesome platform, but its canonical
-front-end is not very flexible. Asteroid gives the
-possibility to connect to a Meteor backend with any JS app.
+```js
+import {createClass} from "asteroid";
 
-Some of the things Asteroid allows you to do are:
-
-*	make any existing application reactive
-
-*	use any front-end framework you want with Meteor
-
-*	develop browser extensions backed by Meteor
-
-[Blog post on the library](http://mondora.com/#!/post/e2da7bd7ccb774de13324488b4e24abd)
-
-##Install
-
-###In the browser
-
-First, dowload the library:
-
-    bower install asteroid
-
-Then, add the necessary libraries to your `index.html`:
-
-    <script src="bower_components/ddp.js/src/ddp.js"></script>
-    <script src="bower_components/q/q.js"></script>
-    <script src="bower_components/asteroid/dist/asteroid.browser.js"></script>
-    
-If you want to login via oauth providers (facebook, google etc),
-also include the appropriate plugin:
-
-    <script src="bower_components/asteroid/dist/plugins/facebook-login.js"></script>
-
-For facebook connect support in cordova via the [facebook connect plugin](https://github.com/Wizcorp/phonegap-facebook-plugin),
-see https://github.com/keyvanfatehi/asteroid-facebook-connect
-    
-###In a chrome extension or in cordova
-
-Just replace `asteroid.browser.js` with `asteroid.chrome.js` or `asteroid.cordova.js`.
-
-If using from within a chrome extension make sure to request for the `tabs` and `storage` permissions in your extensions manifest file.
-
-###In node
-
-Download the package:
-
-    npm install asteroid
-
-Require it in your project:
-
-    var Asteroid = require("asteroid");
-
-##Example usage
-
-```javascript
+const Asteroid = createClass();
 // Connect to a Meteor backend
-var ceres = new Asteroid("localhost:3000");
+const asteroid = new Asteroid({
+    endpoint: "ws://localhost:3000/websocket"
+});
 
 // Use real-time collections
-ceres.subscribe("tasksPublication");
-var tasks = ceres.getCollection("tasks");
-tasks.insert({
-  description: "Do the laundry"
-});
-// Get the task
-var laundryTaskRQ = tasks.reactiveQuery({description: "Do the laundry"});
-// Log the array of results
-console.log(laundryTaskRQ.result);
-// Listen for changes
-laundryTaskRQ.on("change", function () {
-  console.log(laundryTaskRQ.result);
+asteroid.subscribe("tasksPublication");
+
+asteroid.ddp.on("added", ({collection, id, fields}) => {
+    console.log(`Element added to collection ${collection}`);
+    console.log(id);
+    console.log(fields);
 });
 
-// Login your user
-ceres.loginWithTwitter();
+// Login
+asteroid.loginWithPassword({username, email, password});
 
-// Call method and use promises via the Q library
-var ret = ceres.call('newUser');
-
-ret.result
-  .then(function (result) {
-  console.log('Success:', result);
-}).catch(function (error) {
-  console.error('Error:', error);
-});
+// Call method and use promises
+asteroid.call("newUser")
+    .then(result => {
+        console.log("Success");
+        console.log(result);
+    })
+    .catch(error => {
+        console.log("Error");
+        console.error(error);
+    });
 ```
 
-Please refer to the [Q documentation](https://github.com/kriskowal/q) for more information about handling promises.
+## Mixins
 
-##Advantages over the canonical Meteor front-end
+Mixins are used to extend Asteroid's functionalities. You add mixins by passing
+them to the `createClass` function.
 
-* Small footprint.
+A mixin is an object with a set of enumerable function properties. Those
+functions will all be mixed into `Asteroid.prototype`. The special function
+`init` won't end up the in `prototype`. Instead it will be called on
+instantiation with the arguments passed to the constructor.
 
-* Framework agnostic. Use the tools you already know and
-  love to build your app.
+### Included mixins
 
-* Allows to use Meteor as a full-blown backend or just as a
-  real-time platform pluggable into any existing project.
+* `ddp`: establishes the ddp connection
+* `methods`: adds methods for invoking ddp remote methods
+* `subscriptions`: adds methods for subscribing to ddp publications
+* `login`: adds methods for logging in
+* `password-login`: adds methods for password logins / user creation
 
-* Easily connect to multiple Meteor servers at the same
-  time, perfect for building admin interfaces.
+### Third-party mixins
 
- 
-##Build asteroid locally
+* [asteroid-immutable-collections-mixin](https://git.io/vgAz6): stores
+  collections published by the server into an immutable map
+* [asteroid-oauth-mixin](https://git.io/vgAKT): allows logging in via oauth
 
-Clone the repository (or your fork) on your computer.
+## Development environment setup
 
-    git clone https://github.com/mondora/asteroid
+After cloning the repository, install `npm` dependencies with `npm install`.
+Run `npm test` to run unit tests, or `npm run dev` to have `mocha` re-run your
+tests when source or test files change.
 
-Enter the project's directory and install the required
-dependencies:
+## Contribute
 
-    cd asteroid/
-    npm install
+Contributions are as always very welcome. If you have written a mixin for
+asteroid, feel free to make a PR to add it to this README.
 
-Start the development environment (requires `gulp` installed globally):
+## API
 
-    gulp
+### module.createClass([mixins])
 
-Visit `localhost:8080/browser.html` and `localhost:8080/node.html`
-for unit tests result.
+Create the `Asteroid` class. Any passed-in mixins will be added to the default
+mixins.
 
+##### Arguments
 
-##Contribute
+* `mixins` **Array< object >** _optional_: mixins you want to use
 
-Contributions are as always very very welcome. If you
-want to help but don't know how to get started,
-[feel free to schedule a pair programming session with me!](http://mondora.com/#!/post/4ddde81d13b2152ab068b54e85bd4a2a)
+##### Returns
 
+The `Asteroid` class.
 
+---
 
-##API
+### new Asteroid(options)
 
+Creates a new Asteroid instance (which is also an `EventEmitter`).
 
+On instantiation:
+* the `ddp` mixin will automatically connect to the Meteor backend
+* the `login` mixin will try to resume a previous session
 
-##Asteroid methods
+##### Arguments
 
+* `options` **object** _required_:
+  * `endpoint` **string** _required_: the DDP endpoint to connect to, e.g.
+    `ws://example.com/websocket`
+  * `SocketConstructor` **function** _optional_ [default: `WebSocket`]: the
+    class to be used to create the websocket connection to the server. In node,
+    use `faye-websocket-node`'s `Client`. In older browsers which do not support
+    `WebSocket`, use `sockjs-client`'s `SockJS`
+  * `autoConnect` **boolean** _optional_ [default: `true`]: whether to
+    auto-connect to the server on instantiation. Otherwise the `connect` method
+    can be used to establish the connection
+  * `autoReconnect` **boolean** _optional_ [default: `true`]: wheter to
+    auto-reconnect when the connection drops for whatever reason. This option
+    will be ignored - and the connection won't be re-established - if the
+    connection is terminated by calling the `disconnect` method
+  * `reconnectInterval` **number** _optional_ [default: 10000]: the interval in
+    ms between reconnection attempts
 
-
-###new Asteroid(host, ssl, interceptor)
-
-Creates a new Asteroid instance, that is, a connection to a
-Meteor server (via DDP).
-
-After being constructed, the instance will connect itself to
-the Meteor backend. It will also try, upon connection, to
-resume a previous login session (with a token saved in
-localstorage). The `Asteroid.resumeLoginPromise` property
-stores a promise which will be resolved if the resume was
-successful, rejected otherwise.
-
-If `SockJS` is defined, it will be used as the socket
-transport. Otherwise `WebSocket` will be used. Note that
-`SockJS` is required for IE9 support.
-
-#####Arguments
-
-* `host` **string** _required_: the address of the Meteor
-  server, e.g. `example.meteor.com`
-
-* `ssl` **boolean** _optional_: whether to use SSL. Defaults
-  to `false`.
-
-* `interceptor` **function** _optional_: a function which
-  will intercept any socket event. It will be called with an
-  event object containing the name of the event, the
-  timestamp of the event, and details about the event (for
-  instance, in case of a "socket_message_received" event,
-  it'll contain the payload of the message).
-
-#####Returns
+##### Returns
 
 An Asteroid instance.
 
-------------------------------------------------------------
+---
 
-###Asteroid.on(event, handler)
+### connect()
 
-Registers an event handler for the specified event.
+Provided by the `ddp` mixin.
 
-#####Arguments
+Establishes a connection to the ddp server. No-op if a connection is already
+established.
 
-* `event` **string** _required_: the name of the event.
+##### Arguments
 
-* `handler` **function** _required_: the handler.
+None.
 
-An Asteroid instance emits the following events:
+##### Returns
 
-* `connected`: emitted when the DDP connection is
-  established. No arguments are passed to the handler.
+Nothing.
 
-* `login`: emitted when the user logs in. The id of the
-  logged in user will be passed as argument to the handler.
+---
 
-* `logout`: emitted when the user logs out. No arguments are
-  passed to the handler.
+### disconnect()
 
-#####Returns
+Provided by the `ddp` mixin.
 
-Nothing
+Terminates the connection to the ddp server. No-op if there's no active
+connection.
 
-------------------------------------------------------------
+##### Arguments
 
-###Asteroid.loginWith ... ()
+None.
 
-Logs the user in via the specified third party (oauth)
-service.
+##### Returns
 
-#####Available services
+Nothing.
 
-* **facebook**: `loginWithFacebook`
+---
 
-* **google**: `loginWithGoogle`
+### call(method, [param1, param2, ...])
 
-* **twitter**: `loginWithTwitter`
-
-* **github**: `loginWithGithub`
-
-#####Returns
-
-A promise which will be resolved with the logged user id if
-the login is successful. Otherwise it'll be rejected with
-the error.
-
-------------------------------------------------------------
-
-###Asteroid.createUser(usernameOrEmail, password, profile)
-
-Creates a user and logs him in. **Does not** hash the
-password before sending it to the server. This is not a
-problem, since you'll probably be using SSL anyway.
-
-#####Arguments
-
-* `usernameOrEmail` **string** _required_: the username or
-  email.
-
-* `password` **string** _required_: the password.
-
-* `profile` **object** _optional_: a blackbox, you can throw
-  anything in here and it'll end up into `user.profile`.
-
-#####Returns
-
-A promise which will be resolved with the logged user id if
-the creation and login are successful. Otherwise it'll be
-rejected with an error.
-
-------------------------------------------------------------
-
-###Asteroid.loginWithPassword(usernameOrEmail, password)
-
-Logs the user in username/email and password. **Does not**
-hash the password before sending it to the server. This is
-not a problem, since you'll probably be using SSL anyway.
-
-#####Arguments
-
-* `usernameOrEmail` **string** _required_: the username or
-  email.
-
-* `password` **string** _required_: the password.
-
-#####Returns
-
-A promise which will be resolved with the logged user id if
-the login is successful. Otherwise it'll be rejected with
-an error.
-
-------------------------------------------------------------
-
-###Asteroid.logout()
-
-Logs out the user.
-
-#####Arguments
-
-None
-
-#####Returns
-
-A promise which will be resolved with if the logout is
-successful. Otherwise it'll be rejected with the error.
-
-------------------------------------------------------------
-###Asteroid.subscribe(name, [param1, param2, ...])
-
-Subscribes to the specified subscription. If an identical
-subscription (same name and parameters) has already been
-made, Asteroid will return that subscription.
-
-#####Arguments
-
-* `name` **string** _required_: the name of the subscription.
-
-* `param1, param2, ...` _optional_: a list of parameters
-  that will be passed to the publish function on the server.
-
-#####Returns
-
-A subscription instance.
-
-------------------------------------------------------------
-
-###Asteroid.Subscription
-
-Subscription instances have the following properties:
-
-* `id` **string**: the `id` of the subscription, as
-  returned by the `ddp.sub` method
-
-* `ready` **promise**: a promise which will be resolved with
-  the `id` of the subscription if the subscription succeeds
-  (we receive the ddp `ready` message), or will be rejected
-  if it fails (we receive, upon subscribing, the `nosub`
-  message).
-
-And the following method:
-
-* `stop`: it takes no argument, sends the ddp `unsub`
-  message and deletes the subscription so it can be garbage
-  collected.
-
-------------------------------------------------------------
-
-###Asteroid.call(method, [param1, param2, ...])
+Provided by the `methods` mixin.
 
 Calls a server-side method with the specified arguments.
 
-#####Arguments
+##### Arguments
 
-* `method` **string** _required_: the name of the method to
-  call.
+* `method` **string** _required_: the name of the method to call
+* `param1, param2, ...` **...any** _optional_: parameters passed to the server
+  method
 
-* `param1, param2, ...` _optional_: a list of parameters
-  that will be passed to the method on the server.
+##### Returns
 
-#####Returns
+A promise to the method return value (the promise is rejected if the method
+throws).
 
-An object with two properties: `result` and `updated`. Both
-properties are promises.
+---
 
-If the method is successful, the `result` promise will be
-resolved with the return value passed by the server. The
-`updated` promise will be resolved with nothing once the
-server emits the `updated` message, that tells the client
-that any side-effect that the method execution caused on the
-database has been reflected on the client (for example, if
-the method caused the insertion of an item into a
-collection, the client has been notified of said insertion).
+### apply(method, params)
 
-If the method fails, the `result` promise will be rejected
-with the error returned by the server. The `updated`
-promise will be rejected as well (with nothing).
+Provided by the `methods` mixin.
 
-------------------------------------------------------------
+Same as `call`, but using as array of parameters instead of a list.
 
-###Asteroid.apply(method, params)
+##### Arguments
 
-Same as Asteroid.call, but using as array of parameters
-instead of a list.
+* `method` **string** _required_: the name of the method to call
+* `params` **Array< any >** _optional_: an array of parameters passed to the
+  server method
 
-#####Arguments
+##### Returns
 
-* `method` **string** _required_: the name of the method to
-  call.
+Same as `call`, see above.
 
-* `params` **array** _optional_: an array of parameters that
-  will be passed to the method on the server.
+---
 
-#####Returns
+### subscribe(name, [param1, param2, ...])
 
-Same as Asteroid.call, see above.
+Provided by the `subscriptions` mixin.
 
-------------------------------------------------------------
+Subscribes to the specified publication. If an identical subscription (name
+and parameters) has already been made, Asteroid will not re-subscribe and
+return that subscription instead (subscriptions are idempotent, so it does not
+make sense to re-subscribe).
 
-###Asteroid.getCollection(name)
+##### Arguments
 
-Creates and returns a collection. If the collection already
-exists, nothing changes and the existing one is returned.
+* `name` **string** _required_: the name of the publication
 
-#####Arguments
+* `param1, param2, ...` **...any** _optional_: a list of parameters that are
+  passed to the publication function on the server
 
-* `name` **string** _required_: the name of the collection to
-  create.
+##### Returns
 
-#####Returns
+A subscription object. Subscription objects have an `id`, which you can
+later use to unsubscribe, and are `EventEmitter`-s. You can listen for the
+following events:
 
-A reference to the collection.
+* `ready`: emitted without parameters when the subscription is marked as `ready`
+  by the server
+* `error`: emitted with the error as first and only parameter when the server
+  signals an error occurred on the subscription
+* **TODO** `stopped`: emitted when the subscription stops
 
-#####Note
+---
 
-Asteroid auto-creates collections for you. For example, if
-you subscribe to an hypothetical `posts` subscription, the
-server will start sending the client `added` messages that
-refer to items of the `posts` collection. With Meteor's
-front-end we would normally need to define the
-`posts`collection before we can access it.
+### unsubscribe(id)
 
-With Asteroid, when the first `added` message is received,
-if the `posts` collection doesn't exist yet, it will get
-automatically created. We can then get a reference to
-that collection by calling `createCollection` (or by
-accessing the semi-private Asteroid.collections
-dictionary).
+Provided by the `subscriptions` mixin.
 
+Unsubscribes from a publication.
 
+##### Arguments
 
-##Asteroid.Collection methods
+* `id` **string** _required_: the `id` of the subscription
 
-All the following methods use latency compensation.
+##### Returns
 
+Nothing.
 
+---
 
-###Collection.insert(item)
+### createUser(options)
 
-Inserts an item into a collection. If the item does not
-have an `_id` property, one will be automatically generated
-for it.
+Provided by the `password-login` mixin.
 
-#####Arguments
+Creates a user and logs him in. **Does not** hash the password before sending
+it to the server. This should not be a problem, since you'll probably be using
+SSL anyway.
 
-* `item` **object** _required_: the object to insert. Must
-  be JSON serializable. Optional support for EJSON is
-  planned.
+##### Arguments
 
-#####Returns
+* `options` **object** _required_:
+  * `username` **string** _optional_
+  * `email` **string** _optional_
+  * `password` **string** _required_
 
-An object with two properties: `local` and `remote`. Both
-properties are promises.
+Note: you must specify either `options.username` or `options.email`.
 
-The local promise is immediately resolved with the `_id` of
-the inserted item. That is, unless an error occurred. In
-that case, an exception will be raised. (TODO: this is a bit
-of an API inconsistency which maybe should be fixed).
+##### Returns
 
-The remote promise is resolved with the `_id` of the
-inserted item if the remote insert is successful. Otherwise
-it's rejected with the reason of the failure.
+A promise which resolves to the `userId` of the created user when the creation
+succeeds, or rejects when it fails.
 
-------------------------------------------------------------
+---
 
-###Collection.update(id, item)
+### loginWithPassword(options)
 
-Updates the specified item.
+Provided by the `password-login` mixin.
 
-#####Arguments
+Logs the user in using username/email and password. **Does not** hash the
+password before sending it to the server. This should not be a problem, since
+you'll probably be using SSL anyway.
 
-* `id` **string** _required_: the id of the item to update.
+##### Arguments
 
-* `item` **object** _required_: the object that will
-  replace the old one.
+* `options` **object** _required_:
+  * `username` **string** _optional_
+  * `email` **string** _optional_
+  * `password` **string** _required_
 
-#####Returns
+Note: you must specify either `options.username` or `options.email`.
 
-An object with two properties: `local` and `remote`. Both
-properties are promises.
+##### Returns
 
-The local promise is immediately resolved with the `_id` of
-the updated item. That is, unless an error occurred. In
-that case, an exception will be raised. (TODO: this is a bit
-of an API inconsistency which should be fixed).
+A promise which resolves to the `userId` of the logged in user when the login
+succeeds, or rejects when it fails.
 
-The remote promise is resolved with the `_id` of the updated
-item if the remote update is successful. Otherwise it's
-rejected with the reason of the failure.
+---
 
-#####Note
+### login(params)
 
-<span style="color:red;">The API greatly differs from
-Meteor's API. Aligning the two is on the TODO list.</span>
+Provided by the `login` mixin.
 
-------------------------------------------------------------
+Log in the user.
 
-###Collection.remove(id)
+##### Arguments
 
-Removes the specified item.
+* `params` **object** _required_: params to pass for login with a custom
+  provider
 
-#####Arguments
+##### Returns
 
-* `id` **string** _required_: the id of the item to remove.
+A promise which resolves to the `userId` of the logged in user when the login
+succeeds, or rejects when it fails.
 
-#####Returns
+---
 
-An object with two properties: `local` and `remote`. Both
-properties are promises.
+### logout()
 
-The local promise is immediately resolved with the `_id` of
-the removed item. That is, unless an error occurred. In
-that case, an exception will be raised. (TODO: this is a bit
-of an API inconsistency which should be fixed).
+Provided by the `login` mixin.
 
-The remote promise is resolved with the `_id` of the removed
-item if the remote remove is successful. Otherwise it's
-rejected with the reason of the failure.
+Logs out the user.
 
-------------------------------------------------------------
+##### Arguments
 
-###Collection.reactiveQuery(selector)
+None
 
-Gets a "reactive" subset of the collection.
+##### Returns
 
-#####Arguments
+A promise which resolves to null when the logout succeeds, or rejects when it
+fails.
 
-* `selector` **object or function** _required_: a
-  MongoDB-style selector. Actually for now only a simple
-  selector is supported (example `{key1: val1, key2.subkey1:
-  val2}`). To compensate for this, you can also pass in a
-  filter function which will be invoked on each item of the
-  collection. If the function returns a truthy value, the
-  item will be included, otherwise it will be left out.
-  Help on adding support for more complex selectors is
-  appreciated.
+---
 
-#####Returns
+### Public `Asteroid` events
 
-A ReactiveQuery instance.
-
-
-
-##ReactiveQuery methods and properties
-
-
-
-###ReactiveQuery.result
-
-The array of items in the collection that matched the query.
-
-------------------------------------------------------------
-
-###ReactiveQuery.on(event, handler)
-
-Registers a handler for an event.
-
-#####Arguments
-
-* `event` **string** _required_: the name of the event.
-
-* `handler` **function** _required_: the handler for the
-  event.
-
-Possible events are:
-
-* `change`: emitted whenever the result of the query
-  changes. The id of the item that changed is passed to the
-  handler.
+* `connected` (emitted by the `ddp` mixin)
+* `disconnected` (emitted by the `ddp` mixin)
+* `loggedIn` (emitted by the `login` mixin)
+* `loggedOut` (emitted by the `login` mixin)
